@@ -33,7 +33,7 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
 
   const handleEnhance = async () => {
     if (!isApiKeyConfigured) {
-      setError("API Key is not configured. Please set NEXT_PUBLIC_API_KEY environment variable.");
+      setError("API Key is not configured. Please set API_KEY environment variable.");
       return;
     }
     setLoading(true);
@@ -76,7 +76,7 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
   const enhanceButtonTooltip = !isApiKeyConfigured ? "API Key not configured." : "";
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex justify-center items-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity50 flex justify-center items-center p-4">
       <div className="relative bg-white w-full max-w-4xl p-6 rounded-lg shadow-xl max-h-[90vh] flex flex-col">
         <h2 className="text-2xl font-bold mb-4 text-gray-900">Enhance Project: {project.companyName || project.role}</h2>
 

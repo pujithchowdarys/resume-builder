@@ -150,7 +150,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
 
   const handleParseResume = async () => {
     if (!isApiKeyConfigured) {
-      setError("API Key is not configured. Please set NEXT_PUBLIC_API_KEY environment variable.");
+      setError("API Key is not configured. Please set API_KEY environment variable.");
       return;
     }
     if (!rawResumeText.trim()) {
@@ -177,7 +177,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
 
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex justify-center items-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity50 flex justify-center items-center p-4">
       <div className="relative bg-white w-full max-w-3xl p-6 rounded-lg shadow-xl max-h-[90vh] flex flex-col">
         <SectionHeader title="Upload Your Existing Resume" />
         <p className="text-gray-700 mb-4 text-sm">

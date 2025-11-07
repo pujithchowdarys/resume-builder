@@ -46,10 +46,10 @@ export async function enhanceProject(
   // Create a new GoogleGenAI instance right before making an API call
   // to ensure it always uses the most up-to-date API key.
   
-  if (!process.env.NEXT_PUBLIC_API_KEY) {
-    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., NEXT_PUBLIC_API_KEY).");
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., API_KEY).");
   }
-  const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 
   const prompt = `As an expert resume writer and AI career coach, your task is to significantly enhance the following project details for a professional resume. Focus on making the description and responsibilities more impactful, quantifiable, and aligned with industry best practices. Additionally, identify and suggest ONE relevant database technology, ONE cloud platform, and ONE dashboard tool that would logically fit or substantially enhance this project, even if not explicitly stated by the user, to make it sound more impressive and modern for a tech resume. If any of these are already mentioned, ensure they are highlighted and potentially expanded upon.
@@ -130,7 +130,7 @@ Please provide the output in a JSON object with the following structure:
 
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
-        errorMessage = 'API Key is invalid or not configured. Please ensure your NEXT_PUBLIC_API_KEY environment variable is valid.';
+        errorMessage = 'API Key is invalid or not configured. Please ensure your API_KEY environment variable is valid.';
       } else {
         errorMessage += ` Details: ${error.message}`;
       }
@@ -155,10 +155,10 @@ export async function generateTailoredResume(
   jobDescription: string
 ): Promise<GeminiTailoredResumeResponse> {
   
-  if (!process.env.NEXT_PUBLIC_API_KEY) {
-    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., NEXT_PUBLIC_API_KEY).");
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., API_KEY).");
   }
-  const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   if (!jobDescription || jobDescription.trim() === '') {
     throw new Error("Job description cannot be empty for tailoring the resume.");
@@ -332,7 +332,7 @@ Please provide the output as a single JSON object with the following structure. 
 
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
-        errorMessage = 'API Key is invalid or not configured. Please ensure your NEXT_PUBLIC_API_KEY environment variable is valid.';
+        errorMessage = 'API Key is invalid or not configured. Please ensure your API_KEY environment variable is valid.';
       } else {
         errorMessage += ` Details: ${error.message}`;
       }
@@ -353,10 +353,10 @@ export async function extractResumeData(
   rawResumeText: string
 ): Promise<ResumeExtractionResponse> {
   
-  if (!process.env.NEXT_PUBLIC_API_KEY) {
-    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., NEXT_PUBLIC_API_KEY).");
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., API_KEY).");
   }
-  const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   if (!rawResumeText || rawResumeText.trim() === '') {
     throw new Error("Resume text cannot be empty for extraction.");
@@ -509,7 +509,7 @@ Please provide the output as a single JSON object with the following structure. 
     let errorMessage = 'Failed to extract resume data.';
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
-        errorMessage = 'API Key is invalid or not configured. Please ensure your NEXT_PUBLIC_API_KEY environment variable is valid.';
+        errorMessage = 'API Key is invalid or not configured. Please ensure your API_KEY environment variable is valid.';
       } else {
         errorMessage += ` Details: ${error.message}`;
       }
