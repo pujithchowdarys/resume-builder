@@ -1,5 +1,5 @@
 import React from 'react';
-import { Project, Internship } from '../types';
+import { Project } from '../types';
 import InputField from './InputField';
 import TextAreaField from './TextAreaField';
 import DateInput from './DateInput';
@@ -9,20 +9,16 @@ import { INITIAL_PROJECT } from '../constants';
 
 interface ExperienceFormProps {
   projects: Project[];
-  internship: Internship | null;
   onUpdateProject: (project: Project) => void;
   onAddProject: () => void;
   onRemoveProject: (id: string) => void;
-  onUpdateInternship: (internship: Internship) => void;
 }
 
 const ExperienceForm: React.FC<ExperienceFormProps> = ({
   projects,
-  internship,
   onUpdateProject,
   onAddProject,
   onRemoveProject,
-  onUpdateInternship,
 }) => {
   const handleProjectChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -32,15 +28,6 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
     onUpdateProject({ ...projects.find((proj) => proj.id === id)!, [name]: value });
   };
 
-  const handleInternshipChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const { name, value } = e.target;
-    if (internship) {
-        onUpdateInternship({ ...internship, [name]: value });
-    }
-  };
-
   return (
     <section className="mb-6 p-6 bg-white shadow-md rounded-lg">
       <SectionHeader title="Experience & Projects">
@@ -48,75 +35,6 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
           Add Project
         </Button>
       </SectionHeader>
-
-      {internship && (
-        <div className="mb-6 border-b pb-4">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Internship</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputField
-              id="intern-companyName"
-              label="Company Name"
-              name="companyName"
-              value={internship.companyName}
-              onChange={handleInternshipChange}
-            />
-            <InputField
-              id="intern-location"
-              label="Location"
-              name="location"
-              value={internship.location}
-              onChange={handleInternshipChange}
-            />
-            <InputField
-              id="intern-role"
-              label="Role"
-              name="role"
-              value={internship.role}
-              onChange={handleInternshipChange}
-            />
-            <DateInput
-              id="intern-startDate"
-              label="Start Date"
-              value={internship.startDate}
-              onChange={handleInternshipChange}
-            />
-            <DateInput
-              id="intern-endDate"
-              label="End Date"
-              value={internship.endDate}
-              onChange={handleInternshipChange}
-            />
-             <div className="md:col-span-2">
-                <TextAreaField
-                id="intern-description"
-                label="Description"
-                name="description"
-                value={internship.description}
-                onChange={handleInternshipChange}
-                />
-            </div>
-            <div className="md:col-span-2">
-                <TextAreaField
-                id="intern-responsibilities"
-                label="Responsibilities (Bullet points)"
-                name="responsibilities"
-                value={internship.responsibilities}
-                onChange={handleInternshipChange}
-                />
-            </div>
-            <div className="md:col-span-2">
-                <InputField
-                id="intern-tools"
-                label="Tools Used (Comma separated)"
-                name="tools"
-                value={internship.tools}
-                onChange={handleInternshipChange}
-                />
-            </div>
-          </div>
-        </div>
-      )}
-
 
       {projects.map((proj, index) => (
         <div key={proj.id} className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b pb-4 mb-4 last:border-b-0 last:pb-0 last:mb-0">

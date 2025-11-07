@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { Project, GeminiEnhancementResponse, ResumeData, GeminiTailoredResumeResponse, Internship, ResumeExtractionResponse, PersonalInfo, Education } from '../types';
+import { Project, GeminiEnhancementResponse, ResumeData, GeminiTailoredResumeResponse, ResumeExtractionResponse, PersonalInfo, Education } from '../types';
 
 /**
  * Encodes a Uint8Array into a base64 string.
@@ -170,16 +170,12 @@ export async function generateTailoredResume(
 
   // Combine projects and internship for a unified enhancement loop in the prompt
   const allExperience = [
-    ...(resumeData.internship ? [{
-      ...resumeData.internship,
-      isInternship: true // Flag to differentiate in prompt
-    }] : []),
     ...resumeData.projects
   ];
 
   const experienceDetailsForPrompt = allExperience.map(item => ({
     id: item.id,
-    type: (item as any).isInternship ? 'Internship' : 'Project',
+    type: 'Project', // All experiences are now projects
     companyName: item.companyName,
     location: item.location,
     startDate: item.startDate,
@@ -194,8 +190,8 @@ export async function generateTailoredResume(
 
 You need to:
 1.  **Generate a professional summary** (3-5 sentences) that highlights the candidate's key qualifications and career aspirations, highly relevant to the provided job description.
-2.  **Generate a comprehensive list of technical skills** (as an array of strings, categorize if appropriate, e.g., "Programming Languages", "Databases", "Cloud Platforms", "Tools") derived from the user's personal projects, internship, original tools, and keywords from the job description.
-3.  **Enhance each provided experience entry (projects and internship)**: For each entry, rewrite the 'description' and 'responsibilities' to be more impactful, quantifiable, and aligned with the job description. Responsibilities should be presented as bullet points, each on a new line. Suggest ONE relevant database technology, ONE cloud platform, and ONE dashboard tool that would logically fit or substantially enhance this entry, even if not explicitly explicitly stated by the user, to make it sound more impressive and modern for a tech resume. Combine original and suggested 'tools' into a single, comprehensive, comma-separated string.
+2.  **Generate a comprehensive list of technical skills** (as an array of strings, categorize if appropriate, e.g., "Programming Languages", "Databases", "Cloud Platforms", "Tools") derived from the user's personal projects, original tools, and keywords from the job description.
+3.  **Enhance each provided experience entry (projects)**: For each entry, rewrite the 'description' and 'responsibilities' to be more impactful, quantifiable, and aligned with the job description. Responsibilities should be presented as bullet points, each on a new line. Suggest ONE relevant database technology, ONE cloud platform, and ONE dashboard tool that would logically fit or substantially enhance this entry, even if not explicitly explicitly stated by the user, to make it sound more impressive and modern for a tech resume. Combine original and suggested 'tools' into a single, comprehensive, comma-separated string.
 
 Here's the current resume data (Personal Info, Education, Experience):
 ${JSON.stringify({
@@ -207,7 +203,7 @@ ${JSON.stringify({
 Here's the Job Description to tailor for:
 ${jobDescription}
 
-Please provide the output as a single JSON object with the following structure. Ensure all original fields for projects and internship (id, companyName, location, startDate, endDate, role, description, responsibilities, tools) are included alongside their enhanced versions. The 'enhancedProjects' array should contain all enhanced project entries, and 'enhancedInternship' should contain the enhanced internship entry if an internship was provided. If no internship was provided, 'enhancedInternship' should be null.
+Please provide the output as a single JSON object with the following structure. Ensure all original fields for projects (id, companyName, location, startDate, endDate, role, description, responsibilities, tools) are included alongside their enhanced versions. The 'enhancedProjects' array should contain all enhanced project entries.
 {
   "summary": "Generated professional summary tailored to the job description.",
   "skills": [
@@ -235,24 +231,7 @@ Please provide the output as a single JSON object with the following structure. 
       "suggestedDashboard": "Suggested dashboard for project 1."
     }
     // ... more enhanced projects ...
-  ],
-  "enhancedInternship": {
-      "id": "intern-id-1",
-      "companyName": "Original Internship Company",
-      "location": "Original Internship Location",
-      "startDate": "YYYY-MM-DD",
-      "endDate": "YYYY-MM-DD",
-      "role": "Original Internship Role",
-      "description": "Original Internship Description",
-      "responsibilities": "Original Internship Responsibilities",
-      "tools": "Original Internship Tools",
-      "enhancedDescription": "AI-enhanced description for internship, aligned with JD.",
-      "enhancedResponsibilities": "Bullet point A.\\nBullet point B.",
-      "enhancedTools": "Comma-separated list of original and suggested internship tools.",
-      "suggestedDatabase": "Suggested database for internship.",
-      "suggestedCloud": "Suggested cloud for internship.",
-      "suggestedDashboard": "Suggested dashboard for internship."
-  }
+  ]
 }
 `;
 
@@ -298,30 +277,8 @@ Please provide the output as a single JSON object with the following structure. 
                 required: ['id', 'companyName', 'location', 'startDate', 'endDate', 'role', 'description', 'responsibilities', 'tools', 'enhancedDescription', 'enhancedResponsibilities', 'enhancedTools', 'suggestedDatabase', 'suggestedCloud', 'suggestedDashboard'],
               },
             },
-            enhancedInternship: {
-              type: Type.OBJECT,
-              nullable: true, // Internship is optional
-              properties: {
-                id: { type: Type.STRING },
-                companyName: { type: Type.STRING },
-                location: { type: Type.STRING },
-                startDate: { type: Type.STRING },
-                endDate: { type: Type.STRING },
-                role: { type: Type.STRING },
-                description: { type: Type.STRING }, // Original
-                responsibilities: { type: Type.STRING }, // Original
-                tools: { type: Type.STRING }, // Original
-                enhancedDescription: { type: Type.STRING },
-                enhancedResponsibilities: { type: Type.STRING },
-                enhancedTools: { type: Type.STRING },
-                suggestedDatabase: { type: Type.STRING },
-                suggestedCloud: { type: Type.STRING },
-                suggestedDashboard: { type: Type.STRING },
-              },
-              required: ['id', 'companyName', 'location', 'startDate', 'endDate', 'role', 'description', 'responsibilities', 'tools', 'enhancedDescription', 'enhancedResponsibilities', 'enhancedTools', 'suggestedDatabase', 'suggestedCloud', 'suggestedDashboard'],
-            },
           },
-          required: ['summary', 'skills', 'enhancedProjects', 'enhancedInternship'],
+          required: ['summary', 'skills', 'enhancedProjects'],
         },
       },
     });
@@ -368,9 +325,9 @@ export async function extractResumeData(
     throw new Error("Resume text cannot be empty for extraction.");
   }
 
-  const prompt = `As an expert resume parser, your task is to extract structured information from the following raw resume text. Identify personal information, education, all work experiences (categorizing as either an 'internship' if clearly indicated by role or duration, or a 'project' otherwise), skills, and a summary.
+  const prompt = `As an expert resume parser, your task is to extract structured information from the following raw resume text. Identify personal information, education, all work experiences as 'projects', skills, and a summary.
 
-If multiple similar experiences exist, structure them as projects. If there's a clear single internship, extract it into the 'internship' field; otherwise, include all work experience under 'projects'. For projects and internship, infer missing details like location, dates, or tools if not explicitly stated, but prioritize accuracy from the text. For skills, provide a concise list of technologies, tools, and soft skills. The summary should be concise and reflective of the resume content.
+For projects, infer missing details like location, dates, or tools if not explicitly stated, but prioritize accuracy from the text. For skills, provide a concise list of technologies, tools, and soft skills. The summary should be concise and reflective of the resume content.
 
 Raw Resume Text:
 ${rawResumeText}
@@ -396,17 +353,6 @@ Please provide the output as a single JSON object with the following structure. 
       "gpa": "GPA or Grade"
     }
   ],
-  "internship": {
-    "id": "unique-id-for-internship",
-    "companyName": "Internship Company Name",
-    "location": "City, State",
-    "startDate": "YYYY-MM-DD",
-    "endDate": "YYYY-MM-DD",
-    "role": "Internship Role",
-    "description": "Brief description of internship",
-    "responsibilities": "Bullet points of responsibilities, separated by \\n",
-    "tools": "Comma-separated tools used"
-  } | null,
   "projects": [
     {
       "id": "unique-id-for-proj1",
@@ -465,22 +411,6 @@ Please provide the output as a single JSON object with the following structure. 
                 required: ['id', 'degree', 'university', 'location', 'startDate', 'endDate', 'gpa'],
               },
             },
-            internship: {
-              type: Type.OBJECT,
-              nullable: true,
-              properties: {
-                id: { type: Type.STRING },
-                companyName: { type: Type.STRING },
-                location: { type: Type.STRING },
-                startDate: { type: Type.STRING },
-                endDate: { type: Type.STRING },
-                role: { type: Type.STRING },
-                description: { type: Type.STRING },
-                responsibilities: { type: Type.STRING },
-                tools: { type: Type.STRING },
-              },
-              required: ['id', 'companyName', 'location', 'startDate', 'endDate', 'role', 'description', 'responsibilities', 'tools'],
-            },
             projects: {
               type: Type.ARRAY,
               items: {
@@ -502,7 +432,7 @@ Please provide the output as a single JSON object with the following structure. 
             summary: { type: Type.STRING },
             skills: { type: Type.ARRAY, items: { type: Type.STRING } },
           },
-          required: ['personalInfo', 'education', 'internship', 'projects', 'summary', 'skills'],
+          required: ['personalInfo', 'education', 'projects', 'summary', 'skills'],
         },
       },
     });

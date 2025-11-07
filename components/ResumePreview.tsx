@@ -1,12 +1,12 @@
 import React from 'react';
-import { ResumeData, EnhancedProject, Internship, Education } from '../types';
+import { ResumeData, EnhancedProject, Education } from '../types';
 
 interface ResumePreviewProps {
   resumeData: ResumeData;
 }
 
 const ResumePreview: React.FC<ResumePreviewProps> = ({ resumeData }) => {
-  const { personalInfo, education, internship, projects, summary, skills } = resumeData;
+  const { personalInfo, education, projects, summary, skills } = resumeData;
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Present';
@@ -27,7 +27,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resumeData }) => {
     );
   };
 
-  const renderProjectDetails = (project: EnhancedProject | Internship) => (
+  const renderProjectDetails = (project: EnhancedProject) => (
     <div key={project.id} className="mb-4 last:mb-0">
       <div className="flex justify-between items-baseline">
         <h4 className="font-semibold text-md text-gray-800">
@@ -38,26 +38,26 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resumeData }) => {
         </p>
       </div>
       <p className="text-gray-700 text-sm mt-1">
-        {(project as EnhancedProject).enhancedDescription
-          ? (project as EnhancedProject).enhancedDescription
+        {project.enhancedDescription
+          ? project.enhancedDescription
           : project.description}
       </p>
       {renderBulletPoints(
-        (project as EnhancedProject).enhancedResponsibilities
-          ? (project as EnhancedProject).enhancedResponsibilities
+        project.enhancedResponsibilities
+          ? project.enhancedResponsibilities
           : project.responsibilities
       )}
       <p className="text-gray-700 text-sm mt-1">
         <span className="font-medium">Tools:</span>{' '}
-        {(project as EnhancedProject).enhancedTools
-          ? (project as EnhancedProject).enhancedTools
+        {project.enhancedTools
+          ? project.enhancedTools
           : project.tools}
-        {(project as EnhancedProject).suggestedDatabase &&
-          ` | Database: ${(project as EnhancedProject).suggestedDatabase}`}
-        {(project as EnhancedProject).suggestedCloud &&
-          ` | Cloud: ${(project as EnhancedProject).suggestedCloud}`}
-        {(project as EnhancedProject).suggestedDashboard &&
-          ` | Dashboard: ${(project as EnhancedProject).suggestedDashboard}`}
+        {project.suggestedDatabase &&
+          ` | Database: ${project.suggestedDatabase}`}
+        {project.suggestedCloud &&
+          ` | Cloud: ${project.suggestedCloud}`}
+        {project.suggestedDashboard &&
+          ` | Dashboard: ${project.suggestedDashboard}`}
       </p>
     </div>
   );
@@ -127,10 +127,9 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ resumeData }) => {
       )}
 
       {/* Experience / Projects */}
-      {(internship || projects.length > 0) && (
+      {projects.length > 0 && (
         <div className="pb-4 mb-4">
           <h2 className="text-xl font-bold text-gray-900 mb-2">Experience & Projects</h2>
-          {internship && renderProjectDetails(internship)}
           {projects.map(renderProjectDetails)}
         </div>
       )}

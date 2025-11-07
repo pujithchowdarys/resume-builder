@@ -3,7 +3,6 @@ import {
   PersonalInfo,
   Education,
   Project,
-  Internship,
   ResumeData,
   Profile,
   EnhancedProject,
@@ -14,7 +13,6 @@ import {
   INITIAL_PERSONAL_INFO,
   INITIAL_EDUCATION,
   INITIAL_PROJECT,
-  INITIAL_INTERNSHIP,
   INITIAL_RESUME_DATA,
   DEFAULT_PROFILE_NAME,
   UPLOADED_PROFILE_NAME,
@@ -221,17 +219,12 @@ function App() {
     let defaultStartDate = '';
 
     if (btechEducation && btechEducation.endDate) {
-      // Set project start date to one year after B.Tech end, ensuring internship space
+      // Set project start date to one year after B.Tech end
       const btechEndDate = new Date(btechEducation.endDate);
       const projectStartDate = new Date(btechEndDate.setFullYear(btechEndDate.getFullYear() + 1));
       defaultStartDate = projectStartDate.toISOString().split('T')[0];
-    } else if (currentResumeData.internship && currentResumeData.internship.endDate) {
-      // If no B.Tech but an internship exists, start project after internship
-      const internshipEndDate = new Date(currentResumeData.internship.endDate);
-      const projectStartDate = new Date(internshipEndDate.setDate(internshipEndDate.getDate() + 1)); // Day after internship
-      defaultStartDate = projectStartDate.toISOString().split('T')[0];
     } else {
-      // Fallback if no B.Tech or internship
+      // Fallback if no B.Tech 
       defaultStartDate = new Date().toISOString().split('T')[0];
     }
 
@@ -245,55 +238,6 @@ function App() {
       projects: currentResumeData.projects.filter(proj => proj.id !== id),
     });
   };
-
-  // Internship handler (always one, auto-generated)
-  const handleUpdateInternship = (updatedInternship: Internship) => {
-      updateResumeData({ internship: updatedInternship });
-  };
-
-  // Effect to ensure internship is present and dated correctly
-  useEffect(() => {
-    // Only auto-generate internship if it's currently null or has default placeholder values
-    if (!currentResumeData.internship || currentResumeData.internship.companyName === INITIAL_INTERNSHIP.companyName) {
-      const btechEducation = currentResumeData.education.find(edu =>
-        edu.degree.toLowerCase().includes('bachelor') || edu.degree.toLowerCase().includes('b.tech')
-      );
-
-      if (btechEducation && btechEducation.endDate) {
-        const btechEndDate = new Date(btechEducation.endDate);
-        const internshipEndDate = new Date(btechEndDate); // Internship ends same time B.Tech ends
-        // Internship starts 1 year before B.Tech ends
-        const internshipStartDate = new Date(btechEndDate.setFullYear(btechEndDate.getFullYear() - 1));
-
-        const newInternship: Internship = {
-          ...INITIAL_INTERNSHIP,
-          id: currentResumeData.internship?.id || generateId(), // Preserve ID if exists
-          startDate: internshipStartDate.toISOString().split('T')[0],
-          endDate: internshipEndDate.toISOString().split('T')[0],
-        };
-
-        // Update if current internship is null or if dates are significantly off
-        if (!currentResumeData.internship ||
-            currentResumeData.internship.startDate !== newInternship.startDate ||
-            currentResumeData.internship.endDate !== newInternship.endDate) {
-          updateResumeData({ internship: newInternship });
-        }
-      } else if (!currentResumeData.internship) {
-        // If no B.Tech end date, but no internship, set a generic one
-        const genericEndDate = new Date();
-        const genericStartDate = new Date(genericEndDate.setFullYear(genericEndDate.getFullYear() - 1));
-        const newInternship: Internship = {
-          ...INITIAL_INTERNSHIP,
-          id: generateId(),
-          startDate: genericStartDate.toISOString().split('T')[0],
-          endDate: new Date().toISOString().split('T')[0], // Today's date as end
-        };
-        updateResumeData({ internship: newInternship });
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentResumeData.education]); // Recalculate if education changes
-
 
   // Profile management
   const handleSelectProfile = (id: string) => {
@@ -375,15 +319,10 @@ function App() {
         return originalProject ? { ...originalProject, ...ep } : ep;
       });
 
-      const updatedInternship: Internship | null = tailoredResponse.enhancedInternship ?
-        ({ ...currentResumeData.internship, ...tailoredResponse.enhancedInternship } as Internship)
-        : currentResumeData.internship;
-
       updateResumeData({
         summary: tailoredResponse.summary,
         skills: tailoredResponse.skills,
         projects: updatedProjects,
-        internship: updatedInternship,
       });
       setTailorError(null); // Clear any previous errors
     } catch (error: any) {
@@ -411,7 +350,6 @@ function App() {
     const newResumeData: ResumeData = {
       personalInfo: extractedData.personalInfo,
       education: extractedData.education.map(edu => ({...edu, id: edu.id || generateId()})), // Ensure IDs
-      internship: extractedData.internship ? {...extractedData.internship, id: extractedData.internship.id || generateId()} : null,
       // Map extracted Project to EnhancedProject type for consistency.
       projects: extractedData.projects.map(proj => ({...proj, id: proj.id || generateId()})),
       summary: extractedData.summary,
@@ -489,7 +427,7 @@ function App() {
       <section className="mb-6 p-6 bg-white shadow-md rounded-lg">
         <SectionHeader title="Tailor Resume for a Job" />
         <p className="text-gray-700 mb-4">
-          Paste a job description below, and AI will generate a tailored summary, skills, and enhance your project/internship details to match the role!
+          Paste a job description below, and AI will generate a tailored summary, skills, and enhance your project details to match the role!
         </p>
         <TextAreaField
           id="jobDescriptionInput"
@@ -575,11 +513,9 @@ function App() {
 
           <ExperienceForm
             projects={currentResumeData.projects}
-            internship={currentResumeData.internship}
             onUpdateProject={handleUpdateProject}
             onAddProject={handleAddProject}
             onRemoveProject={handleRemoveProject}
-            onUpdateInternship={handleUpdateInternship}
           />
 
           <section className="p-6 bg-white shadow-md rounded-lg">
