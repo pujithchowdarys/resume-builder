@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import Button from './Button';
 import TextAreaField from './TextAreaField';
@@ -152,7 +150,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
 
   const handleParseResume = async () => {
     if (!isApiKeyConfigured) {
-      setError("API Key is not configured. Please set API_KEY environment variable.");
+      setError("API Key is not configured. Please set NEXT_PUBLIC_API_KEY environment variable.");
       return;
     }
     if (!rawResumeText.trim()) {

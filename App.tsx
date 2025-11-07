@@ -45,8 +45,8 @@ function App() {
   const [showEnhancementModal, setShowEnhancementModal] = useState<boolean>(false);
   const [projectToEnhance, setProjectToEnhance] = useState<Project | null>(null);
   
-  // aiKeySelected will now be true if process.env.API_KEY is defined
-  const isApiKeyConfigured = !!process.env.API_KEY;
+  // aiKeySelected will now be true if process.env.NEXT_PUBLIC_API_KEY is defined
+  const isApiKeyConfigured = !!process.env.NEXT_PUBLIC_API_KEY;
   const [aiKeyError, setAiKeyError] = useState<string | null>(null);
 
   // New states for global tailoring
@@ -122,7 +122,7 @@ function App() {
     }
   }, [currentProfileId, profiles]);
 
-  // Check AI Key status based on process.env.API_KEY
+  // Check AI Key status based on process.env.NEXT_PUBLIC_API_KEY
   useEffect(() => {
     if (!isApiKeyConfigured) {
       setAiKeyError("API_KEY environment variable is not configured. AI features will be disabled.");
@@ -315,7 +315,7 @@ function App() {
   // Global Resume Tailoring Handler
   const handleGenerateTailoredResume = async () => {
     if (!isApiKeyConfigured) {
-      setTailorError("API_KEY environment variable is not configured. Please set it in your Vercel project settings or .env file.");
+      setTailorError("API_KEY environment variable is not configured. Please set it in your Vercel project settings or .env file (as NEXT_PUBLIC_API_KEY).");
       return;
     }
     if (!jobDescription.trim()) {
@@ -407,7 +407,7 @@ function App() {
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 flex justify-between items-center" role="alert">
           <span className="block sm:inline">{aiKeyError}</span>
           {!isApiKeyConfigured && ( // Only show hint if API key is truly not configured
-            <span className="text-sm ml-4">Please set the `API_KEY` environment variable in your Vercel project settings or .env file.</span>
+            <span className="text-sm ml-4">Please set the `NEXT_PUBLIC_API_KEY` environment variable in your Vercel project settings or .env file.</span>
           )}
         </div>
       )}

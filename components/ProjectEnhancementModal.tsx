@@ -33,7 +33,7 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
 
   const handleEnhance = async () => {
     if (!isApiKeyConfigured) {
-      setError("API Key is not configured. Please set API_KEY environment variable.");
+      setError("API Key is not configured. Please set NEXT_PUBLIC_API_KEY environment variable.");
       return;
     }
     setLoading(true);
