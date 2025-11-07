@@ -1,5 +1,5 @@
 {
-  "name": "Gemini Resume Builder",
+  "name": "Pujiverse Resume Builder",
   "description": "An AI-powered resume builder that customizes and enhances your profile based on job descriptions using the Gemini API, creating professional and impactful resumes.",
   "requestFramePermissions": []
 }

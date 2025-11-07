@@ -375,7 +375,7 @@ function App() {
   return (
     <Layout>
       <h1 className="text-4xl font-extrabold text-center text-gray-900 mb-8">
-        AI-Powered Resume Builder
+        Pujiverse Resume Builder
       </h1>
 
       {/* Global API Key Input and Error Display */}
