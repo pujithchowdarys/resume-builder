@@ -10,12 +10,14 @@ interface ProjectEnhancementModalProps {
   project: Project;
   onClose: () => void;
   onSave: (enhancedProject: EnhancedProject) => void;
+  isApiKeyConfigured: boolean; // New prop to indicate if API key is set
 }
 
 const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
   project,
   onClose,
   onSave,
+  isApiKeyConfigured,
 }) => {
   const [jobDescription, setJobDescription] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -30,6 +32,10 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
   const [currentDashboard, setCurrentDashboard] = useState<string>('');
 
   const handleEnhance = async () => {
+    if (!isApiKeyConfigured) {
+      setError("API Key is not configured. Please set API_KEY environment variable.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setEnhancedData(null);
@@ -66,6 +72,9 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
 
   if (!project) return null;
 
+  const enhanceButtonDisabled = loading || !isApiKeyConfigured;
+  const enhanceButtonTooltip = !isApiKeyConfigured ? "API Key not configured." : "";
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex justify-center items-center p-4">
       <div className="relative bg-white w-full max-w-4xl p-6 rounded-lg shadow-xl max-h-[90vh] flex flex-col">
@@ -81,7 +90,12 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
               placeholder="Paste the job description here to help the AI tailor the project details."
               rows={5}
             />
-            <Button onClick={handleEnhance} disabled={loading} className="w-full">
+            <Button
+              onClick={handleEnhance}
+              disabled={enhanceButtonDisabled}
+              className="w-full"
+              title={enhanceButtonTooltip} // Add tooltip for disabled state
+            >
               {loading ? 'Enhancing...' : 'Enhance with AI'}
             </Button>
           </div>

@@ -44,7 +44,9 @@ function App() {
   const [currentResumeData, setCurrentResumeData] = useState<ResumeData>(INITIAL_RESUME_DATA);
   const [showEnhancementModal, setShowEnhancementModal] = useState<boolean>(false);
   const [projectToEnhance, setProjectToEnhance] = useState<Project | null>(null);
-  const [aiKeySelected, setAiKeySelected] = useState<boolean>(false);
+  
+  // aiKeySelected will now be true if process.env.API_KEY is defined
+  const isApiKeyConfigured = !!process.env.API_KEY;
   const [aiKeyError, setAiKeyError] = useState<string | null>(null);
 
   // New states for global tailoring
@@ -120,48 +122,14 @@ function App() {
     }
   }, [currentProfileId, profiles]);
 
-  // Check AI Key status
-  const checkAiKeyStatus = useCallback(async () => {
-    if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-      try {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setAiKeySelected(hasKey);
-        if (!hasKey) {
-          setAiKeyError("Gemini API key not selected. Please select one to use AI features.");
-        } else {
-          setAiKeyError(null);
-        }
-      } catch (error) {
-        console.error("Error checking AI key status:", error);
-        setAiKeyError("Could not check API key status. AI features may be unavailable.");
-      }
-    } else {
-      setAiKeyError("AI Studio SDK not detected. AI features may be unavailable.");
-    }
-  }, []);
-
+  // Check AI Key status based on process.env.API_KEY
   useEffect(() => {
-    checkAiKeyStatus();
-  }, [checkAiKeyStatus]);
-
-  const handleSelectApiKey = useCallback(async () => {
-    if (window.aistudio && window.aistudio.openSelectKey) {
-      try {
-        await window.aistudio.openSelectKey();
-        // Assume success for race condition mitigation
-        setAiKeySelected(true);
-        setAiKeyError(null);
-        // Re-check after a brief delay if needed, but for Veo it's better to assume success.
-        // For models like generateContent, the new API_KEY is picked up when GoogleGenAI is instantiated.
-      } catch (error) {
-        console.error("Error opening API key selection:", error);
-        setAiKeyError("Failed to open API key selection. Please try again.");
-        setAiKeySelected(false);
-      }
+    if (!isApiKeyConfigured) {
+      setAiKeyError("API_KEY environment variable is not configured. AI features will be disabled.");
     } else {
-      setAiKeyError("AI Studio SDK not detected. Cannot select API key.");
+      setAiKeyError(null);
     }
-  }, []);
+  }, [isApiKeyConfigured]);
 
 
   const updateResumeData = (newData: Partial<ResumeData>) => {
@@ -346,9 +314,8 @@ function App() {
 
   // Global Resume Tailoring Handler
   const handleGenerateTailoredResume = async () => {
-    if (!aiKeySelected) {
-      setTailorError("Please select your Gemini API key to use this feature.");
-      handleSelectApiKey();
+    if (!isApiKeyConfigured) {
+      setTailorError("API_KEY environment variable is not configured. Please set it in your Vercel project settings or .env file.");
       return;
     }
     if (!jobDescription.trim()) {
@@ -385,11 +352,6 @@ function App() {
     } catch (error: any) {
       console.error("Error generating tailored resume:", error);
       setTailorError(error.message || "An unexpected error occurred during resume tailoring.");
-      // If API key is reported as invalid, trigger selection.
-      if (error.message.includes('API key invalid or not selected')) {
-        setAiKeySelected(false);
-        handleSelectApiKey(); // Prompt user to re-select key
-      }
     } finally {
       setLoadingTailor(false);
     }
@@ -431,6 +393,10 @@ function App() {
     setShowResumeUploadModal(false); // Close modal
   };
 
+  const tailorButtonDisabled = loadingTailor || !isApiKeyConfigured || !jobDescription.trim();
+  const tailorButtonTooltip = !isApiKeyConfigured ? "API Key not configured." : "";
+
+
   return (
     <Layout>
       <h1 className="text-4xl font-extrabold text-center text-gray-900 mb-8">
@@ -440,10 +406,8 @@ function App() {
       {aiKeyError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 flex justify-between items-center" role="alert">
           <span className="block sm:inline">{aiKeyError}</span>
-          {aiKeyError.includes('API key not selected') && (
-            <Button onClick={handleSelectApiKey} variant="danger" size="sm" className="ml-4">
-              Select API Key
-            </Button>
+          {!isApiKeyConfigured && ( // Only show hint if API key is truly not configured
+            <span className="text-sm ml-4">Please set the `API_KEY` environment variable in your Vercel project settings or .env file.</span>
           )}
         </div>
       )}
@@ -477,7 +441,13 @@ function App() {
           placeholder="Paste the full job description here..."
           rows={8}
         />
-        <Button onClick={handleGenerateTailoredResume} disabled={loadingTailor || !aiKeySelected || !jobDescription.trim()} fullWidth className="mt-4">
+        <Button
+          onClick={handleGenerateTailoredResume}
+          disabled={tailorButtonDisabled}
+          fullWidth
+          className="mt-4"
+          title={tailorButtonTooltip}
+        >
           {loadingTailor ? (
             <LoadingSpinner message="Generating tailored resume..." />
           ) : (
@@ -568,7 +538,8 @@ function App() {
                     onClick={() => openEnhancementModal(proj)}
                     variant="outline"
                     size="sm"
-                    disabled={!aiKeySelected}
+                    disabled={!isApiKeyConfigured}
+                    title={!isApiKeyConfigured ? "API Key not configured." : ""}
                   >
                     Enhance Project
                   </Button>
@@ -592,6 +563,7 @@ function App() {
           project={projectToEnhance}
           onClose={closeEnhancementModal}
           onSave={handleSaveEnhancedProject}
+          isApiKeyConfigured={isApiKeyConfigured}
         />
       )}
 
@@ -599,8 +571,7 @@ function App() {
         <ResumeUploadModal
           onClose={handleCloseResumeUploadModal}
           onSave={handleSaveExtractedResumeData}
-          onSelectApiKey={handleSelectApiKey}
-          aiKeySelected={aiKeySelected}
+          isApiKeyConfigured={isApiKeyConfigured}
         />
       )}
     </Layout>

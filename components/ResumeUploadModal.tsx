@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import Button from './Button';
 import TextAreaField from './TextAreaField';
@@ -32,11 +33,10 @@ declare const mammoth: any; // Global access for Mammoth.js
 interface ResumeUploadModalProps {
   onClose: () => void;
   onSave: (extractedData: ResumeExtractionResponse) => void;
-  onSelectApiKey: () => void;
-  aiKeySelected: boolean;
+  isApiKeyConfigured: boolean; // New prop to indicate if API key is set
 }
 
-const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, onSelectApiKey, aiKeySelected }) => {
+const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, isApiKeyConfigured }) => {
   const [rawResumeText, setRawResumeText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +76,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
         reader.readAsText(file);
       } else if (file.type === 'application/pdf') {
         if (!pdfjsLib || !pdfjsLib.getDocument) {
-          setFileUploadError('PDF.js library not loaded. Cannot parse PDF files.');
+          setFileUploadError('PDF.js library not loaded. Cannot parse PDF files. Ensure the PDF.js CDN script is correctly linked in index.html.');
           setFileProcessingMessage(null);
           return;
         }
@@ -115,7 +115,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
         file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
       ) {
         if (!mammoth || !mammoth.extractRawText) {
-          setFileUploadError('Mammoth.js library not loaded. Cannot parse DOC/DOCX files.');
+          setFileUploadError('Mammoth.js library not loaded. Cannot parse DOC/DOCX files. Ensure the Mammoth.js CDN script is correctly linked in index.html.');
           setFileProcessingMessage(null);
           return;
         }
@@ -151,9 +151,8 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
   };
 
   const handleParseResume = async () => {
-    if (!aiKeySelected) {
-      setError("Please select your Gemini API key to use this feature.");
-      onSelectApiKey();
+    if (!isApiKeyConfigured) {
+      setError("API Key is not configured. Please set API_KEY environment variable.");
       return;
     }
     if (!rawResumeText.trim()) {
@@ -170,13 +169,14 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
     } catch (err: any) {
       console.error("Error parsing resume with AI:", err);
       setError(err.message || 'An unexpected error occurred during AI resume parsing.');
-      if (err.message.includes('API key invalid or not selected')) {
-        onSelectApiKey(); // Prompt user to re-select key
-      }
     } finally {
       setLoading(false);
     }
   };
+
+  const parseButtonDisabled = loading || !rawResumeText.trim() || !isApiKeyConfigured;
+  const parseButtonTooltip = !isApiKeyConfigured ? "API Key not configured." : "";
+
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex justify-center items-center p-4">
@@ -230,7 +230,12 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
           <Button onClick={onClose} variant="secondary">
             Cancel
           </Button>
-          <Button onClick={handleParseResume} disabled={loading || !rawResumeText.trim()} variant="primary">
+          <Button
+            onClick={handleParseResume}
+            disabled={parseButtonDisabled}
+            variant="primary"
+            title={parseButtonTooltip} // Add tooltip for disabled state
+          >
             Parse Resume with AI
           </Button>
         </div>
