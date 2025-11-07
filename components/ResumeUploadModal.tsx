@@ -31,16 +31,18 @@ declare const mammoth: any; // Global access for Mammoth.js
 interface ResumeUploadModalProps {
   onClose: () => void;
   onSave: (extractedData: ResumeExtractionResponse) => void;
-  isApiKeyConfigured: boolean; // New prop to indicate if API key is set
+  apiKey: string | null; // Changed from isApiKeyConfigured: boolean
 }
 
-const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, isApiKeyConfigured }) => {
+const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, apiKey }) => {
   const [rawResumeText, setRawResumeText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [fileUploadError, setFileUploadError] = useState<string | null>(null);
   const [fileProcessingMessage, setFileProcessingMessage] = useState<string | null>(null);
+
+  const isApiKeyConfigured = !!apiKey; // Derive from apiKey prop
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -150,7 +152,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
 
   const handleParseResume = async () => {
     if (!isApiKeyConfigured) {
-      setError("API Key is not configured. Please set API_KEY environment variable.");
+      setError("API Key is not configured. Please enter your API Key in the main application.");
       return;
     }
     if (!rawResumeText.trim()) {
@@ -161,7 +163,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
     setLoading(true);
     setError(null);
     try {
-      const extractedData = await extractResumeData(rawResumeText);
+      const extractedData = await extractResumeData(apiKey!, rawResumeText); // Pass apiKey
       onSave(extractedData);
       onClose();
     } catch (err: any) {
@@ -173,7 +175,7 @@ const ResumeUploadModal: React.FC<ResumeUploadModalProps> = ({ onClose, onSave, 
   };
 
   const parseButtonDisabled = loading || !rawResumeText.trim() || !isApiKeyConfigured;
-  const parseButtonTooltip = !isApiKeyConfigured ? "API Key not configured." : "";
+  const parseButtonTooltip = !isApiKeyConfigured ? "API Key not configured. Enter it in the main application." : "";
 
 
   return (

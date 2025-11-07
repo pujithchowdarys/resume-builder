@@ -38,6 +38,8 @@ import LoadingSpinner from './components/LoadingSpinner';
 // Utility to generate unique IDs
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
+const LOCAL_STORAGE_API_KEY = 'gemini_api_key'; // Constant for local storage key
+
 function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
@@ -45,9 +47,12 @@ function App() {
   const [showEnhancementModal, setShowEnhancementModal] = useState<boolean>(false);
   const [projectToEnhance, setProjectToEnhance] = useState<Project | null>(null);
   
-  // isApiKeyConfigured will now be true if process.env.API_KEY is defined
-  const isApiKeyConfigured = !!process.env.API_KEY;
+  // States for API Key management
+  const [manualApiKey, setManualApiKey] = useState<string>(''); // For the input field
+  const [effectiveApiKey, setEffectiveApiKey] = useState<string | null>(null); // The key actually used
+  const isApiKeyConfigured = !!effectiveApiKey;
   const [aiKeyError, setAiKeyError] = useState<string | null>(null);
+
 
   // New states for global tailoring
   const [jobDescription, setJobDescription] = useState<string>('');
@@ -58,8 +63,9 @@ function App() {
   const [showResumeUploadModal, setShowResumeUploadModal] = useState<boolean>(false);
 
 
-  // Load profiles from localStorage on initial render
+  // Load profiles and API Key from localStorage on initial render
   useEffect(() => {
+    // --- Load Profiles ---
     const savedProfiles = localStorage.getItem('resumeProfiles');
     const lastSelectedProfileId = localStorage.getItem('lastSelectedProfileId');
 
@@ -103,6 +109,18 @@ function App() {
       localStorage.setItem('resumeProfiles', JSON.stringify([newProfile]));
       localStorage.setItem('lastSelectedProfileId', newProfile.id);
     }
+
+    // --- Load API Key ---
+    const storedKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
+    if (storedKey) {
+      setEffectiveApiKey(storedKey);
+      setManualApiKey(storedKey); // Pre-fill input if found
+    } else if (process.env.API_KEY) {
+      // Fallback to process.env.API_KEY (for AI Studio/local .env)
+      setEffectiveApiKey(process.env.API_KEY);
+    } else {
+      setEffectiveApiKey(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
@@ -122,14 +140,32 @@ function App() {
     }
   }, [currentProfileId, profiles]);
 
-  // Check AI Key status based on process.env.API_KEY
+  // Check AI Key status based on effectiveApiKey
   useEffect(() => {
-    if (!isApiKeyConfigured) {
-      setAiKeyError("API_KEY environment variable is not configured. AI features will be disabled.");
+    if (!effectiveApiKey) {
+      setAiKeyError("API Key is not configured. AI features will be disabled. Please enter your API Key below.");
     } else {
       setAiKeyError(null);
     }
-  }, [isApiKeyConfigured]);
+  }, [effectiveApiKey]);
+
+  // Handle manual API Key input and storage
+  const handleManualApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setManualApiKey(e.target.value);
+  };
+
+  const handleSaveApiKey = () => {
+    const trimmedKey = manualApiKey.trim();
+    if (trimmedKey) {
+      localStorage.setItem(LOCAL_STORAGE_API_KEY, trimmedKey);
+      setEffectiveApiKey(trimmedKey);
+      setAiKeyError(null); // Clear error on save
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_API_KEY);
+      setEffectiveApiKey(null);
+      setAiKeyError("API Key is not configured. AI features will be disabled. Please enter your API Key below.");
+    }
+  };
 
 
   const updateResumeData = (newData: Partial<ResumeData>) => {
@@ -314,8 +350,8 @@ function App() {
 
   // Global Resume Tailoring Handler
   const handleGenerateTailoredResume = async () => {
-    if (!isApiKeyConfigured) {
-      setTailorError("API_KEY environment variable is not configured. Please set it in your Vercel project settings or .env file.");
+    if (!isApiKeyConfigured || !effectiveApiKey) {
+      setTailorError("API Key is not configured. Please enter your API Key below.");
       return;
     }
     if (!jobDescription.trim()) {
@@ -328,6 +364,7 @@ function App() {
 
     try {
       const tailoredResponse: GeminiTailoredResumeResponse = await generateTailoredResume(
+        effectiveApiKey, // Pass effectiveApiKey
         currentResumeData,
         jobDescription
       );
@@ -394,7 +431,7 @@ function App() {
   };
 
   const tailorButtonDisabled = loadingTailor || !isApiKeyConfigured || !jobDescription.trim();
-  const tailorButtonTooltip = !isApiKeyConfigured ? "API Key not configured." : "";
+  const tailorButtonTooltip = !isApiKeyConfigured ? "API Key not configured. Enter it below." : "";
 
 
   return (
@@ -403,13 +440,34 @@ function App() {
         AI-Powered Resume Builder
       </h1>
 
+      {/* Global API Key Input and Error Display */}
       {aiKeyError && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 flex justify-between items-center" role="alert">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <span className="block sm:inline">{aiKeyError}</span>
-          {!isApiKeyConfigured && ( // Only show hint if API key is truly not configured
-            <span className="text-sm ml-4">Please set the `API_KEY` environment variable in your Vercel project settings or .env file.</span>
-          )}
         </div>
+      )}
+
+      {!isApiKeyConfigured && (
+        <section className="mb-6 p-6 bg-yellow-50 border border-yellow-200 shadow-md rounded-lg">
+          <SectionHeader title="Enter Your Gemini API Key" />
+          <p className="text-gray-700 mb-4 text-sm">
+            To enable AI features, please enter your Google Gemini API Key. This will be stored locally in your browser.
+            Get your API key from <a href="https://ai.google.dev/gemini-api/docs/get-started/web" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ai.google.dev</a>.
+          </p>
+          <div className="flex gap-2">
+            <InputField
+              id="apiKeyInput"
+              type="password" // Use password type for security
+              placeholder="YOUR_GEMINI_API_KEY"
+              value={manualApiKey}
+              onChange={handleManualApiKeyChange}
+              className="flex-grow"
+            />
+            <Button onClick={handleSaveApiKey} variant="primary">
+              Save Key
+            </Button>
+          </div>
+        </section>
       )}
 
       <ProfileSelector
@@ -539,7 +597,7 @@ function App() {
                     variant="outline"
                     size="sm"
                     disabled={!isApiKeyConfigured}
-                    title={!isApiKeyConfigured ? "API Key not configured." : ""}
+                    title={!isApiKeyConfigured ? "API Key not configured. Enter it below." : ""}
                   >
                     Enhance Project
                   </Button>
@@ -563,7 +621,7 @@ function App() {
           project={projectToEnhance}
           onClose={closeEnhancementModal}
           onSave={handleSaveEnhancedProject}
-          isApiKeyConfigured={isApiKeyConfigured}
+          apiKey={effectiveApiKey} // Pass apiKey
         />
       )}
 
@@ -571,7 +629,7 @@ function App() {
         <ResumeUploadModal
           onClose={handleCloseResumeUploadModal}
           onSave={handleSaveExtractedResumeData}
-          isApiKeyConfigured={isApiKeyConfigured}
+          apiKey={effectiveApiKey} // Pass apiKey
         />
       )}
     </Layout>

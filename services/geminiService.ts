@@ -35,21 +35,23 @@ function decode(base64: string): Uint8Array {
  * Enhances a project description, responsibilities, and tools using the Gemini API,
  * and suggests relevant database, cloud, and dashboard technologies.
  *
+ * @param apiKey The Google Gemini API key.
  * @param project The original project details.
  * @param jobDescription An optional job description to tailor the enhancement.
  * @returns A promise that resolves to an object containing enhanced details and suggestions.
  */
 export async function enhanceProject(
+  apiKey: string,
   project: Project,
   jobDescription: string = ''
 ): Promise<GeminiEnhancementResponse> {
   // Create a new GoogleGenAI instance right before making an API call
   // to ensure it always uses the most up-to-date API key.
   
-  if (!process.env.API_KEY) {
-    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., API_KEY).");
+  if (!apiKey) {
+    throw new Error("API Key is not configured.");
   }
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
 
   const prompt = `As an expert resume writer and AI career coach, your task is to significantly enhance the following project details for a professional resume. Focus on making the description and responsibilities more impactful, quantifiable, and aligned with industry best practices. Additionally, identify and suggest ONE relevant database technology, ONE cloud platform, and ONE dashboard tool that would logically fit or substantially enhance this project, even if not explicitly stated by the user, to make it sound more impressive and modern for a tech resume. If any of these are already mentioned, ensure they are highlighted and potentially expanded upon.
@@ -130,7 +132,7 @@ Please provide the output in a JSON object with the following structure:
 
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
-        errorMessage = 'API Key is invalid or not configured. Please ensure your API_KEY environment variable is valid.';
+        errorMessage = 'API Key is invalid or not configured. Please enter a valid API Key.';
       } else {
         errorMessage += ` Details: ${error.message}`;
       }
@@ -146,19 +148,21 @@ Please provide the output in a JSON object with the following structure:
  * Generates a tailored resume (summary, skills, and enhanced projects/internship)
  * based on the provided resume data and a job description using the Gemini API.
  *
+ * @param apiKey The Google Gemini API key.
  * @param resumeData The complete resume data.
  * @param jobDescription The job description to tailor the resume to.
  * @returns A promise that resolves to an object containing the tailored resume sections.
  */
 export async function generateTailoredResume(
+  apiKey: string,
   resumeData: ResumeData,
   jobDescription: string
 ): Promise<GeminiTailoredResumeResponse> {
   
-  if (!process.env.API_KEY) {
-    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., API_KEY).");
+  if (!apiKey) {
+    throw new Error("API Key is not configured.");
   }
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
   if (!jobDescription || jobDescription.trim() === '') {
     throw new Error("Job description cannot be empty for tailoring the resume.");
@@ -332,7 +336,7 @@ Please provide the output as a single JSON object with the following structure. 
 
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
-        errorMessage = 'API Key is invalid or not configured. Please ensure your API_KEY environment variable is valid.';
+        errorMessage = 'API Key is invalid or not configured. Please enter a valid API Key.';
       } else {
         errorMessage += ` Details: ${error.message}`;
       }
@@ -346,17 +350,19 @@ Please provide the output as a single JSON object with the following structure. 
 /**
  * Extracts structured resume data from raw text using the Gemini API.
  *
+ * @param apiKey The Google Gemini API key.
  * @param rawResumeText The plain text content of a resume.
  * @returns A promise that resolves to a ResumeExtractionResponse object.
  */
 export async function extractResumeData(
+  apiKey: string,
   rawResumeText: string
 ): Promise<ResumeExtractionResponse> {
   
-  if (!process.env.API_KEY) {
-    throw new Error("API_KEY is not defined. Please set it as an environment variable (e.g., API_KEY).");
+  if (!apiKey) {
+    throw new Error("API Key is not configured.");
   }
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
   if (!rawResumeText || rawResumeText.trim() === '') {
     throw new Error("Resume text cannot be empty for extraction.");
@@ -509,7 +515,7 @@ Please provide the output as a single JSON object with the following structure. 
     let errorMessage = 'Failed to extract resume data.';
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
-        errorMessage = 'API Key is invalid or not configured. Please ensure your API_KEY environment variable is valid.';
+        errorMessage = 'API Key is invalid or not configured. Please enter a valid API Key.';
       } else {
         errorMessage += ` Details: ${error.message}`;
       }

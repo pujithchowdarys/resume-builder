@@ -10,14 +10,14 @@ interface ProjectEnhancementModalProps {
   project: Project;
   onClose: () => void;
   onSave: (enhancedProject: EnhancedProject) => void;
-  isApiKeyConfigured: boolean; // New prop to indicate if API key is set
+  apiKey: string | null; // Changed from isApiKeyConfigured: boolean
 }
 
 const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
   project,
   onClose,
   onSave,
-  isApiKeyConfigured,
+  apiKey,
 }) => {
   const [jobDescription, setJobDescription] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -31,16 +31,18 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
   const [currentCloud, setCurrentCloud] = useState<string>('');
   const [currentDashboard, setCurrentDashboard] = useState<string>('');
 
+  const isApiKeyConfigured = !!apiKey; // Derive from apiKey prop
+
   const handleEnhance = async () => {
     if (!isApiKeyConfigured) {
-      setError("API Key is not configured. Please set API_KEY environment variable.");
+      setError("API Key is not configured. Please enter your API Key in the main application.");
       return;
     }
     setLoading(true);
     setError(null);
     setEnhancedData(null);
     try {
-      const response = await callGeminiEnhanceProject(project, jobDescription);
+      const response = await callGeminiEnhanceProject(apiKey!, project, jobDescription); // Pass apiKey
       setEnhancedData(response);
       setCurrentDescription(response.enhancedDescription);
       setCurrentResponsibilities(response.enhancedResponsibilities);
@@ -73,7 +75,7 @@ const ProjectEnhancementModal: React.FC<ProjectEnhancementModalProps> = ({
   if (!project) return null;
 
   const enhanceButtonDisabled = loading || !isApiKeyConfigured;
-  const enhanceButtonTooltip = !isApiKeyConfigured ? "API Key not configured." : "";
+  const enhanceButtonTooltip = !isApiKeyConfigured ? "API Key not configured. Enter it in the main application." : "";
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity50 flex justify-center items-center p-4">
