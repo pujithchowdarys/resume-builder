@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { Project, GeminiEnhancementResponse, ResumeData, GeminiTailoredResumeResponse, ResumeExtractionResponse, PersonalInfo, Education } from '../types';
+import { Project, GeminiEnhancementResponse, ResumeData, GeminiTailoredResumeResponse, ResumeExtractionResponse, PersonalInfo, Education, GeminiMatchAnalysisResponse } from '../types';
 
 /**
  * Encodes a Uint8Array into a base64 string.
@@ -54,7 +54,9 @@ export async function enhanceProject(
   const ai = new GoogleGenAI({ apiKey: apiKey });
 
 
-  const prompt = `As an expert resume writer and AI career coach, your task is to significantly enhance the following project details for a professional resume. Focus on making the description and responsibilities more impactful, quantifiable, and aligned with industry best practices. Additionally, identify and suggest ONE relevant database technology, ONE cloud platform, and ONE dashboard tool that would logically fit or substantially enhance this project, even if not explicitly stated by the user, to make it sound more impressive and modern for a tech resume. If any of these are already mentioned, ensure they are highlighted and potentially expanded upon.
+  const prompt = `As an expert resume writer and AI career coach, your task is to significantly enhance the following project details for a professional resume. Focus on making the description and responsibilities more impactful, quantifiable, and aligned with industry best practices. 
+
+Crucially, suggest ONLY ONE technology for each category (database, cloud, dashboard). Companies typically standardize on a single tool per category to reduce costs, so avoid listing multiple options like 'PostgreSQL/MongoDB' for the database.
 
 Project Details:
 Company: ${project.companyName}
@@ -151,12 +153,14 @@ Please provide the output in a JSON object with the following structure:
  * @param apiKey The Google Gemini API key.
  * @param resumeData The complete resume data.
  * @param jobDescription The job description to tailor the resume to.
+ * @param resumeLength The desired length of the resume ('1-page' or '2-page').
  * @returns A promise that resolves to an object containing the tailored resume sections.
  */
 export async function generateTailoredResume(
   apiKey: string,
   resumeData: ResumeData,
-  jobDescription: string
+  jobDescription: string,
+  resumeLength: '1-page' | '2-page'
 ): Promise<GeminiTailoredResumeResponse> {
   
   if (!apiKey) {
@@ -186,12 +190,19 @@ export async function generateTailoredResume(
     tools: item.tools,
   }));
 
+  const lengthInstruction = resumeLength === '1-page'
+    ? "The final resume must be concise and fit perfectly onto a single page. Be selective and prioritize only the most impactful information relevant to the job description."
+    : "The final resume should be detailed and comprehensive, designed to fill two pages. Provide more depth in the project descriptions and responsibilities to showcase a wide range of experience.";
+
   const prompt = `As an expert resume writer and AI career coach, your task is to craft a complete, tailored resume output based on the provided user's current resume data and a specific job description.
+
+**IMPORTANT RULE: ${lengthInstruction}**
 
 You need to:
 1.  **Generate a professional summary** (3-5 sentences) that highlights the candidate's key qualifications and career aspirations, highly relevant to the provided job description.
 2.  **Generate a comprehensive list of technical skills** (as an array of strings, categorize if appropriate, e.g., "Programming Languages", "Databases", "Cloud Platforms", "Tools") derived from the user's personal projects, original tools, and keywords from the job description.
-3.  **Enhance each provided experience entry (projects)**: For each entry, rewrite the 'description' and 'responsibilities' to be more impactful, quantifiable, and aligned with the job description. Responsibilities should be presented as bullet points, each on a new line. Suggest ONE relevant database technology, ONE cloud platform, and ONE dashboard tool that would logically fit or substantially enhance this entry, even if not explicitly explicitly stated by the user, to make it sound more impressive and modern for a tech resume. Combine original and suggested 'tools' into a single, comprehensive, comma-separated string.
+3.  **Enhance each provided experience entry (projects)**: For each entry, rewrite the 'description' and 'responsibilities' to be more impactful, quantifiable, and aligned with the job description. Responsibilities should be presented as bullet points, each on a new line.
+4.  **Suggest ONE tool per category**: For each experience entry, suggest ONLY ONE relevant database technology, ONE cloud platform, and ONE dashboard tool that would logically fit. It is crucial not to list multiple options for the same category within a single project, as companies typically standardize on a single tool to manage costs. Combine original and suggested 'tools' into a single, comprehensive, comma-separated string.
 
 Here's the current resume data (Personal Info, Education, Experience):
 ${JSON.stringify({
@@ -443,6 +454,117 @@ Please provide the output as a single JSON object with the following structure. 
   } catch (error: any) {
     console.error('Error extracting resume data with Gemini:', error);
     let errorMessage = 'Failed to extract resume data.';
+    if (error.message && typeof error.message === 'string') {
+      if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
+        errorMessage = 'API Key is invalid or not configured. Please enter a valid API Key.';
+      } else {
+        errorMessage += ` Details: ${error.message}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage += ` Details: ${error.message}`;
+    }
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Analyzes the match between a resume and a job description.
+ *
+ * @param apiKey The Google Gemini API key.
+ * @param resumeData The user's current resume data.
+ * @param jobDescription The job description to compare against.
+ * @returns A promise that resolves to a match analysis object.
+ */
+export async function analyzeResumeJobMatch(
+  apiKey: string,
+  resumeData: ResumeData,
+  jobDescription: string
+): Promise<GeminiMatchAnalysisResponse> {
+  if (!apiKey) {
+    throw new Error("API Key is not configured.");
+  }
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+
+  if (!jobDescription || jobDescription.trim() === '') {
+    throw new Error("Job description cannot be empty for analysis.");
+  }
+
+  const projectsForPrompt = resumeData.projects.map(p => ({
+    id: p.id,
+    name: `${p.role} at ${p.companyName || 'Personal Project'}`,
+    description: p.description,
+    responsibilities: p.responsibilities,
+    tools: p.tools,
+  }));
+
+  const prompt = `As an expert career coach and recruiter, your task is to analyze the following resume against the provided job description. Provide a detailed analysis including a match percentage, a summary of the match, a list of missing keywords, and specific, actionable improvement suggestions for each project.
+
+Here is the candidate's resume data (note the project IDs):
+${JSON.stringify({
+  summary: resumeData.summary,
+  skills: resumeData.skills,
+  projects: projectsForPrompt,
+})}
+
+Here is the Job Description to analyze against:
+${jobDescription}
+
+Please provide the output as a single JSON object with the following structure. It is crucial that you return the correct 'projectId' for each improvement suggestion.
+
+{
+  "matchPercentage": "A number between 0 and 100 representing the match score.",
+  "matchSummary": "A concise summary (2-3 sentences) explaining the match score and highlighting key strengths and weaknesses of the resume for this specific job.",
+  "missingKeywords": [
+    "A list of critical keywords, skills, or technologies from the job description that are missing from the resume."
+  ],
+  "improvementSuggestions": [
+    {
+      "projectId": "The ID of the project this suggestion applies to (e.g., 'proj-1').",
+      "projectName": "The name of the project for display (e.g., 'Software Engineer at ABC Corp').",
+      "suggestion": "A specific, actionable suggestion on how to rephrase or add details to this project's description or responsibilities to better align with the job description."
+    }
+  ]
+}
+`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-pro',
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            matchPercentage: { type: Type.NUMBER },
+            matchSummary: { type: Type.STRING },
+            missingKeywords: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+            },
+            improvementSuggestions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  projectId: { type: Type.STRING },
+                  projectName: { type: Type.STRING },
+                  suggestion: { type: Type.STRING },
+                },
+                required: ['projectId', 'projectName', 'suggestion'],
+              },
+            },
+          },
+          required: ['matchPercentage', 'matchSummary', 'missingKeywords', 'improvementSuggestions'],
+        },
+      },
+    });
+
+    const jsonStr = response.text.trim();
+    return JSON.parse(jsonStr) as GeminiMatchAnalysisResponse;
+  } catch (error: any) {
+    console.error('Error analyzing resume-job match with Gemini:', error);
+    let errorMessage = 'Failed to analyze resume match.';
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('API_KEY') || error.message.includes('invalid') || error.message.includes('not found')) {
         errorMessage = 'API Key is invalid or not configured. Please enter a valid API Key.';

@@ -73,3 +73,14 @@ export interface ResumeExtractionResponse { // For initial resume parsing
   summary: string;
   skills: string[];
 }
+
+export interface GeminiMatchAnalysisResponse {
+  matchPercentage: number;
+  matchSummary: string;
+  missingKeywords: string[];
+  improvementSuggestions: {
+    projectId: string;
+    projectName: string;
+    suggestion: string;
+  }[];
+}

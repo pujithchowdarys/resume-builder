@@ -8,6 +8,7 @@ import {
   EnhancedProject,
   GeminiTailoredResumeResponse,
   ResumeExtractionResponse,
+  GeminiMatchAnalysisResponse,
 } from './types';
 import {
   INITIAL_PERSONAL_INFO,
@@ -17,8 +18,7 @@ import {
   DEFAULT_PROFILE_NAME,
   UPLOADED_PROFILE_NAME,
 } from './constants';
-import { generateTailoredResume } from './services/geminiService'; // Import new service
-import { extractResumeData } from './services/geminiService'; // Import new service
+import { generateTailoredResume, extractResumeData, analyzeResumeJobMatch } from './services/geminiService';
 
 import Layout from './components/Layout';
 import InputField from './components/InputField';
@@ -28,10 +28,11 @@ import ResumePreview from './components/ResumePreview';
 import SectionHeader from './components/SectionHeader';
 import ProfileSelector from './components/ProfileSelector';
 import ProjectEnhancementModal from './components/ProjectEnhancementModal';
-import ResumeUploadModal from './components/ResumeUploadModal'; // New component
+import ResumeUploadModal from './components/ResumeUploadModal';
 import Button from './components/Button';
 import TextAreaField from './components/TextAreaField';
 import LoadingSpinner from './components/LoadingSpinner';
+import ResumeLengthModal from './components/ResumeLengthModal';
 
 // Utility to generate unique IDs
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -45,25 +46,32 @@ function App() {
   const [showEnhancementModal, setShowEnhancementModal] = useState<boolean>(false);
   const [projectToEnhance, setProjectToEnhance] = useState<Project | null>(null);
   
-  // States for API Key management
-  const [manualApiKey, setManualApiKey] = useState<string>(''); // For the input field
-  const [effectiveApiKey, setEffectiveApiKey] = useState<string | null>(null); // The key actually used
+  const [manualApiKey, setManualApiKey] = useState<string>('');
+  const [effectiveApiKey, setEffectiveApiKey] = useState<string | null>(null);
   const isApiKeyConfigured = !!effectiveApiKey;
   const [aiKeyError, setAiKeyError] = useState<string | null>(null);
 
-
-  // New states for global tailoring
   const [jobDescription, setJobDescription] = useState<string>('');
   const [loadingTailor, setLoadingTailor] = useState<boolean>(false);
   const [tailorError, setTailorError] = useState<string | null>(null);
 
-  // New state for resume upload
   const [showResumeUploadModal, setShowResumeUploadModal] = useState<boolean>(false);
+  const [isLengthModalVisible, setIsLengthModalVisible] = useState<boolean>(false);
 
 
-  // Load profiles and API Key from localStorage on initial render
+  // New states for Match Analysis
+  const [matchAnalysis, setMatchAnalysis] = useState<GeminiMatchAnalysisResponse | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState<boolean>(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [appliedSuggestions, setAppliedSuggestions] = useState<string[]>([]); // Track applied suggestions by their text
+
+  // Clear analysis when job description or profile changes
   useEffect(() => {
-    // --- Load Profiles ---
+    setMatchAnalysis(null);
+    setAppliedSuggestions([]);
+  }, [jobDescription, currentProfileId]);
+
+  useEffect(() => {
     const savedProfiles = localStorage.getItem('resumeProfiles');
     const lastSelectedProfileId = localStorage.getItem('lastSelectedProfileId');
 
@@ -82,12 +90,7 @@ function App() {
         setCurrentProfileId(profileToLoad.id);
         setCurrentResumeData(profileToLoad.resumeData);
       } else {
-        // No profiles, create a default one
-        const newProfile: Profile = {
-          id: generateId(),
-          name: DEFAULT_PROFILE_NAME,
-          resumeData: INITIAL_RESUME_DATA,
-        };
+        const newProfile: Profile = { id: generateId(), name: DEFAULT_PROFILE_NAME, resumeData: INITIAL_RESUME_DATA };
         setProfiles([newProfile]);
         setCurrentProfileId(newProfile.id);
         setCurrentResumeData(newProfile.resumeData);
@@ -95,12 +98,7 @@ function App() {
         localStorage.setItem('lastSelectedProfileId', newProfile.id);
       }
     } else {
-      // No saved profiles, create the first one
-      const newProfile: Profile = {
-        id: generateId(),
-        name: DEFAULT_PROFILE_NAME,
-        resumeData: INITIAL_RESUME_DATA,
-      };
+      const newProfile: Profile = { id: generateId(), name: DEFAULT_PROFILE_NAME, resumeData: INITIAL_RESUME_DATA };
       setProfiles([newProfile]);
       setCurrentProfileId(newProfile.id);
       setCurrentResumeData(newProfile.resumeData);
@@ -108,21 +106,17 @@ function App() {
       localStorage.setItem('lastSelectedProfileId', newProfile.id);
     }
 
-    // --- Load API Key ---
     const storedKey = localStorage.getItem(LOCAL_STORAGE_API_KEY);
     if (storedKey) {
       setEffectiveApiKey(storedKey);
-      setManualApiKey(storedKey); // Pre-fill input if found
+      setManualApiKey(storedKey);
     } else if (process.env.API_KEY) {
-      // Fallback to process.env.API_KEY (for AI Studio/local .env)
       setEffectiveApiKey(process.env.API_KEY);
     } else {
       setEffectiveApiKey(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, []);
 
-  // Save profiles to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('resumeProfiles', JSON.stringify(profiles));
     if (currentProfileId) {
@@ -130,7 +124,6 @@ function App() {
     }
   }, [profiles, currentProfileId]);
 
-  // Update current resume data when currentProfileId changes
   useEffect(() => {
     const profile = profiles.find(p => p.id === currentProfileId);
     if (profile) {
@@ -138,7 +131,6 @@ function App() {
     }
   }, [currentProfileId, profiles]);
 
-  // Check AI Key status based on effectiveApiKey
   useEffect(() => {
     if (!effectiveApiKey) {
       setAiKeyError("API Key is not configured. AI features will be disabled. Please enter your API Key below.");
@@ -147,7 +139,6 @@ function App() {
     }
   }, [effectiveApiKey]);
 
-  // Handle manual API Key input and storage
   const handleManualApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setManualApiKey(e.target.value);
   };
@@ -157,14 +148,13 @@ function App() {
     if (trimmedKey) {
       localStorage.setItem(LOCAL_STORAGE_API_KEY, trimmedKey);
       setEffectiveApiKey(trimmedKey);
-      setAiKeyError(null); // Clear error on save
+      setAiKeyError(null);
     } else {
       localStorage.removeItem(LOCAL_STORAGE_API_KEY);
       setEffectiveApiKey(null);
       setAiKeyError("API Key is not configured. AI features will be disabled. Please enter your API Key below.");
     }
   };
-
 
   const updateResumeData = (newData: Partial<ResumeData>) => {
     setCurrentResumeData(prev => {
@@ -178,13 +168,11 @@ function App() {
     });
   };
 
-  // Personal Info handlers
   const handlePersonalInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     updateResumeData({ personalInfo: { ...currentResumeData.personalInfo, [name]: value } });
   };
 
-  // Education handlers
   const handleUpdateEducation = (updatedEdu: Education) => {
     updateResumeData({
       education: currentResumeData.education.map(edu =>
@@ -205,7 +193,6 @@ function App() {
     });
   };
 
-  // Project handlers
   const handleUpdateProject = (updatedProject: Project) => {
     updateResumeData({
       projects: currentResumeData.projects.map(proj =>
@@ -215,21 +202,8 @@ function App() {
   };
 
   const handleAddProject = () => {
-    const btechEducation = currentResumeData.education.find(edu => edu.degree.toLowerCase().includes('bachelor') || edu.degree.toLowerCase().includes('b.tech'));
-    let defaultStartDate = '';
-
-    if (btechEducation && btechEducation.endDate) {
-      // Set project start date to one year after B.Tech end
-      const btechEndDate = new Date(btechEducation.endDate);
-      const projectStartDate = new Date(btechEndDate.setFullYear(btechEndDate.getFullYear() + 1));
-      defaultStartDate = projectStartDate.toISOString().split('T')[0];
-    } else {
-      // Fallback if no B.Tech 
-      defaultStartDate = new Date().toISOString().split('T')[0];
-    }
-
     updateResumeData({
-      projects: [...currentResumeData.projects, { ...INITIAL_PROJECT, id: generateId(), startDate: defaultStartDate }],
+      projects: [...currentResumeData.projects, { ...INITIAL_PROJECT, id: generateId() }],
     });
   };
 
@@ -239,7 +213,6 @@ function App() {
     });
   };
 
-  // Profile management
   const handleSelectProfile = (id: string) => {
     setCurrentProfileId(id);
   };
@@ -248,7 +221,7 @@ function App() {
     const newProfile: Profile = {
       id: generateId(),
       name: `New Profile ${profiles.length + 1}`,
-      resumeData: JSON.parse(JSON.stringify(INITIAL_RESUME_DATA)), // Deep copy
+      resumeData: JSON.parse(JSON.stringify(INITIAL_RESUME_DATA)),
     };
     setProfiles(prev => [...prev, newProfile]);
     setCurrentProfileId(newProfile.id);
@@ -268,12 +241,10 @@ function App() {
     const filteredProfiles = profiles.filter(p => p.id !== id);
     setProfiles(filteredProfiles);
     if (currentProfileId === id) {
-      // If deleted current, select the first available
       setCurrentProfileId(filteredProfiles[0].id);
     }
   };
 
-  // AI Enhancement Modal handlers
   const openEnhancementModal = (project: Project) => {
     setProjectToEnhance(project);
     setShowEnhancementModal(true);
@@ -292,9 +263,59 @@ function App() {
     });
   };
 
-  // Global Resume Tailoring Handler
-  const handleGenerateTailoredResume = async () => {
+  const handleAnalyzeMatch = async () => {
     if (!isApiKeyConfigured || !effectiveApiKey) {
+      setAnalysisError("API Key is not configured. Please enter your API Key below.");
+      return;
+    }
+    if (!jobDescription.trim()) {
+      setAnalysisError("Please paste a job description to analyze.");
+      return;
+    }
+
+    setLoadingAnalysis(true);
+    setAnalysisError(null);
+    setMatchAnalysis(null);
+    setAppliedSuggestions([]); // Reset applied suggestions on new analysis
+
+    try {
+      const analysisResponse = await analyzeResumeJobMatch(effectiveApiKey, currentResumeData, jobDescription);
+      setMatchAnalysis(analysisResponse);
+    } catch (error: any) {
+      setAnalysisError(error.message || "An unexpected error occurred during analysis.");
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+  
+  const handleApplySuggestion = (suggestion: { projectId: string; suggestion: string }) => {
+    const projectIndex = currentResumeData.projects.findIndex(p => p.id === suggestion.projectId);
+
+    if (projectIndex === -1) {
+      console.warn("Could not find project to apply suggestion:", suggestion.projectId);
+      return;
+    }
+
+    // Create a new array and a new project object to avoid direct mutation
+    const updatedProjects = [...currentResumeData.projects];
+    const projectToUpdate = { ...updatedProjects[projectIndex] };
+
+    // Use enhancedResponsibilities if it exists, otherwise fall back to original
+    const baseResponsibilities = projectToUpdate.enhancedResponsibilities || projectToUpdate.responsibilities || '';
+    
+    // Append the new suggestion as a new line/bullet point
+    projectToUpdate.enhancedResponsibilities = `${baseResponsibilities}\n${suggestion.suggestion}`.trim();
+    
+    updatedProjects[projectIndex] = projectToUpdate;
+
+    updateResumeData({ projects: updatedProjects });
+
+    // Track that this suggestion has been applied
+    setAppliedSuggestions(prev => [...prev, suggestion.suggestion]);
+  };
+
+  const handleGenerateTailoredResume = () => {
+    if (!isApiKeyConfigured) {
       setTailorError("API Key is not configured. Please enter your API Key below.");
       return;
     }
@@ -302,19 +323,20 @@ function App() {
       setTailorError("Please paste a job description to tailor your resume.");
       return;
     }
+    setIsLengthModalVisible(true);
+  };
+
+  const startResumeGeneration = async (length: '1-page' | '2-page') => {
+    setIsLengthModalVisible(false);
+    if (!effectiveApiKey) return; // Should be guarded by the initial check, but for type safety
 
     setLoadingTailor(true);
     setTailorError(null);
 
     try {
-      const tailoredResponse: GeminiTailoredResumeResponse = await generateTailoredResume(
-        effectiveApiKey, // Pass effectiveApiKey
-        currentResumeData,
-        jobDescription
-      );
+      const tailoredResponse = await generateTailoredResume(effectiveApiKey, currentResumeData, jobDescription, length);
       
       const updatedProjects: EnhancedProject[] = tailoredResponse.enhancedProjects.map(ep => {
-        // Find existing project to ensure all original fields are preserved if AI misses any.
         const originalProject = currentResumeData.projects.find(p => p.id === ep.id);
         return originalProject ? { ...originalProject, ...ep } : ep;
       });
@@ -324,33 +346,24 @@ function App() {
         skills: tailoredResponse.skills,
         projects: updatedProjects,
       });
-      setTailorError(null); // Clear any previous errors
+      setTailorError(null);
     } catch (error: any) {
-      console.error("Error generating tailored resume:", error);
       setTailorError(error.message || "An unexpected error occurred during resume tailoring.");
     } finally {
       setLoadingTailor(false);
     }
   };
 
-  // Resume Upload Handlers
-  const handleOpenResumeUploadModal = () => {
-    setShowResumeUploadModal(true);
-  };
-
-  const handleCloseResumeUploadModal = () => {
-    setShowResumeUploadModal(false);
-  };
+  const handleOpenResumeUploadModal = () => setShowResumeUploadModal(true);
+  const handleCloseResumeUploadModal = () => setShowResumeUploadModal(false);
 
   const handleSaveExtractedResumeData = (extractedData: ResumeExtractionResponse) => {
     const newProfileId = generateId();
     const newProfileName = UPLOADED_PROFILE_NAME;
 
-    // Create a new resume data object, explicitly mapping extracted projects to EnhancedProject
     const newResumeData: ResumeData = {
       personalInfo: extractedData.personalInfo,
-      education: extractedData.education.map(edu => ({...edu, id: edu.id || generateId()})), // Ensure IDs
-      // Map extracted Project to EnhancedProject type for consistency.
+      education: extractedData.education.map(edu => ({...edu, id: edu.id || generateId()})),
       projects: extractedData.projects.map(proj => ({...proj, id: proj.id || generateId()})),
       summary: extractedData.summary,
       skills: extractedData.skills,
@@ -364,13 +377,12 @@ function App() {
 
     setProfiles(prev => [...prev, newProfile]);
     setCurrentProfileId(newProfileId);
-    setCurrentResumeData(newResumeData); // Update current data directly
-    setShowResumeUploadModal(false); // Close modal
+    setCurrentResumeData(newResumeData);
+    setShowResumeUploadModal(false);
   };
 
-  const tailorButtonDisabled = loadingTailor || !isApiKeyConfigured || !jobDescription.trim();
-  const tailorButtonTooltip = !isApiKeyConfigured ? "API Key not configured. Enter it below." : "";
-
+  const actionButtonDisabled = !isApiKeyConfigured || !jobDescription.trim();
+  const actionButtonTooltip = !isApiKeyConfigured ? "API Key not configured. Enter it below." : "";
 
   return (
     <Layout>
@@ -378,7 +390,6 @@ function App() {
         Pujiverse Resume Builder
       </h1>
 
-      {/* Global API Key Input and Error Display */}
       {aiKeyError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <span className="block sm:inline">{aiKeyError}</span>
@@ -395,7 +406,7 @@ function App() {
           <div className="flex gap-2">
             <InputField
               id="apiKeyInput"
-              type="password" // Use password type for security
+              type="password"
               placeholder="YOUR_GEMINI_API_KEY"
               value={manualApiKey}
               onChange={handleManualApiKeyChange}
@@ -422,12 +433,10 @@ function App() {
         </Button>
       </div>
 
-
-      {/* Job Description Input for Global Tailoring */}
       <section className="mb-6 p-6 bg-white shadow-md rounded-lg">
         <SectionHeader title="Tailor Resume for a Job" />
         <p className="text-gray-700 mb-4">
-          Paste a job description below, and AI will generate a tailored summary, skills, and enhance your project details to match the role!
+          Paste a job description to analyze your resume's match and then generate a tailored version.
         </p>
         <TextAreaField
           id="jobDescriptionInput"
@@ -437,135 +446,118 @@ function App() {
           placeholder="Paste the full job description here..."
           rows={8}
         />
-        <Button
-          onClick={handleGenerateTailoredResume}
-          disabled={tailorButtonDisabled}
-          fullWidth
-          className="mt-4"
-          title={tailorButtonTooltip}
-        >
-          {loadingTailor ? (
-            <LoadingSpinner message="Generating tailored resume..." />
-          ) : (
-            'Generate Tailored Resume'
-          )}
-        </Button>
-        {tailorError && (
-          <div className="p-3 bg-red-100 text-red-700 rounded-md mt-4">{tailorError}</div>
-        )}
+        <div className="flex flex-col sm:flex-row gap-4 mt-4">
+          <Button onClick={handleAnalyzeMatch} disabled={actionButtonDisabled || loadingAnalysis} fullWidth title={actionButtonTooltip}>
+            {loadingAnalysis ? <LoadingSpinner message="Analyzing..." /> : 'Analyze Match'}
+          </Button>
+          <Button onClick={handleGenerateTailoredResume} disabled={actionButtonDisabled || loadingTailor} fullWidth title={actionButtonTooltip} variant="primary">
+            {loadingTailor ? <LoadingSpinner message="Generating..." /> : 'Generate Tailored Resume'}
+          </Button>
+        </div>
+        {analysisError && <div className="p-3 bg-red-100 text-red-700 rounded-md mt-4">{analysisError}</div>}
+        {tailorError && <div className="p-3 bg-red-100 text-red-700 rounded-md mt-4">{tailorError}</div>}
       </section>
 
+      {matchAnalysis && (
+        <section className="mb-6 p-6 bg-indigo-50 border border-indigo-200 shadow-md rounded-lg">
+          <SectionHeader title="Match Analysis Report" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-1 flex flex-col items-center justify-center bg-white p-4 rounded-lg shadow">
+              <h3 className="text-lg font-semibold text-gray-800">Match Score</h3>
+              <p className="text-5xl font-bold text-indigo-600 my-2">{matchAnalysis.matchPercentage}%</p>
+              <p className="text-sm text-gray-600 text-center">{matchAnalysis.matchSummary}</p>
+            </div>
+            <div className="md:col-span-2">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Missing Keywords & Skills</h3>
+              <div className="flex flex-wrap gap-2">
+                {matchAnalysis.missingKeywords.length > 0 ? (
+                  matchAnalysis.missingKeywords.map((keyword, index) => (
+                    <span key={index} className="bg-yellow-200 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{keyword}</span>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-600">No critical keywords seem to be missing. Great job!</p>
+                )}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mt-4 mb-2">Improvement Suggestions</h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                {matchAnalysis.improvementSuggestions.length > 0 ? (
+                  matchAnalysis.improvementSuggestions.map((sugg, index) => {
+                    const isApplied = appliedSuggestions.includes(sugg.suggestion);
+                    return (
+                        <div key={index} className="bg-white p-3 rounded-md shadow-sm border border-gray-200 flex justify-between items-start gap-2">
+                            <div>
+                                <p className="font-semibold text-sm text-gray-800">{sugg.projectName}</p>
+                                <p className="text-sm text-gray-600 italic">"{sugg.suggestion}"</p>
+                            </div>
+                            <Button
+                                size="sm"
+                                variant={isApplied ? "secondary" : "outline"}
+                                onClick={() => handleApplySuggestion(sugg)}
+                                disabled={isApplied}
+                                className="flex-shrink-0"
+                            >
+                                {isApplied ? 'Applied' : 'Apply'}
+                            </Button>
+                        </div>
+                    );
+                })
+                ) : (
+                  <p className="text-sm text-gray-600">Your projects are well-aligned. No specific suggestions at this time.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Input Forms Column */}
         <div className="space-y-6">
           <section className="p-6 bg-white shadow-md rounded-lg">
             <SectionHeader title="Personal Information" />
-            <InputField
-              id="name"
-              label="Full Name"
-              name="name"
-              value={currentResumeData.personalInfo.name}
-              onChange={handlePersonalInfoChange}
-              placeholder="John Doe"
-            />
-            <InputField
-              id="phoneNumber"
-              label="Phone Number"
-              name="phoneNumber"
-              value={currentResumeData.personalInfo.phoneNumber}
-              onChange={handlePersonalInfoChange}
-              type="tel"
-              placeholder="+1 (123) 456-7890"
-            />
-            <InputField
-              id="email"
-              label="Email Address"
-              name="email"
-              value={currentResumeData.personalInfo.email}
-              onChange={handlePersonalInfoChange}
-              type="email"
-              placeholder="john.doe@example.com"
-            />
-            <InputField
-              id="linkedin"
-              label="LinkedIn Profile URL"
-              name="linkedin"
-              value={currentResumeData.personalInfo.linkedin}
-              onChange={handlePersonalInfoChange}
-              placeholder="https://www.linkedin.com/in/johndoe"
-            />
-            <InputField
-              id="portfolio"
-              label="Portfolio/Website URL"
-              name="portfolio"
-              value={currentResumeData.personalInfo.portfolio}
-              onChange={handlePersonalInfoChange}
-              placeholder="https://www.johndoe.com"
-            />
+            <InputField id="name" label="Full Name" name="name" value={currentResumeData.personalInfo.name} onChange={handlePersonalInfoChange} placeholder="John Doe" />
+            <InputField id="phoneNumber" label="Phone Number" name="phoneNumber" value={currentResumeData.personalInfo.phoneNumber} onChange={handlePersonalInfoChange} type="tel" placeholder="+1 (123) 456-7890" />
+            <InputField id="email" label="Email Address" name="email" value={currentResumeData.personalInfo.email} onChange={handlePersonalInfoChange} type="email" placeholder="john.doe@example.com" />
+            <InputField id="linkedin" label="LinkedIn Profile URL" name="linkedin" value={currentResumeData.personalInfo.linkedin} onChange={handlePersonalInfoChange} placeholder="https://www.linkedin.com/in/johndoe" />
+            <InputField id="portfolio" label="Portfolio/Website URL" name="portfolio" value={currentResumeData.personalInfo.portfolio} onChange={handlePersonalInfoChange} placeholder="https://www.johndoe.com" />
           </section>
 
-          <EducationForm
-            educationList={currentResumeData.education}
-            onUpdateEducation={handleUpdateEducation}
-            onAddEducation={handleAddEducation}
-            onRemoveEducation={handleRemoveEducation}
-          />
-
-          <ExperienceForm
-            projects={currentResumeData.projects}
-            onUpdateProject={handleUpdateProject}
-            onAddProject={handleAddProject}
-            onRemoveProject={handleRemoveProject}
-          />
+          <EducationForm educationList={currentResumeData.education} onUpdateEducation={handleUpdateEducation} onAddEducation={handleAddEducation} onRemoveEducation={handleRemoveEducation} />
+          <ExperienceForm projects={currentResumeData.projects} onUpdateProject={handleUpdateProject} onAddProject={handleAddProject} onRemoveProject={handleRemoveProject} />
 
           <section className="p-6 bg-white shadow-md rounded-lg">
             <SectionHeader title="AI Individual Project Enhancements" />
-            <p className="text-gray-700 mb-4">
-              Select a project below to enhance its description, responsibilities, and tools
-              using Gemini AI for specific, granular adjustments.
-            </p>
+            <p className="text-gray-700 mb-4">Select a project below to enhance its description, responsibilities, and tools using Gemini AI for specific, granular adjustments.</p>
             <div className="space-y-3">
               {currentResumeData.projects.map(proj => (
                 <div key={proj.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-md border border-gray-200">
                   <span className="font-medium text-gray-800">{proj.role} {proj.companyName && `at ${proj.companyName}`}</span>
-                  <Button
-                    onClick={() => openEnhancementModal(proj)}
-                    variant="outline"
-                    size="sm"
-                    disabled={!isApiKeyConfigured}
-                    title={!isApiKeyConfigured ? "API Key not configured. Enter it below." : ""}
-                  >
+                  <Button onClick={() => openEnhancementModal(proj)} variant="outline" size="sm" disabled={!isApiKeyConfigured} title={!isApiKeyConfigured ? "API Key not configured. Enter it below." : ""}>
                     Enhance Project
                   </Button>
                 </div>
               ))}
-              {currentResumeData.projects.length === 0 && (
-                <p className="text-gray-600 italic">No projects added yet. Add a project above to enhance it.</p>
-              )}
+              {currentResumeData.projects.length === 0 && <p className="text-gray-600 italic">No projects added yet. Add a project above to enhance it.</p>}
             </div>
           </section>
         </div>
 
-        {/* Resume Preview Column */}
         <div className="sticky top-4 lg:top-8 self-start bg-white shadow-xl rounded-lg p-0">
           <ResumePreview resumeData={currentResumeData} />
         </div>
       </div>
 
       {showEnhancementModal && projectToEnhance && (
-        <ProjectEnhancementModal
-          project={projectToEnhance}
-          onClose={closeEnhancementModal}
-          onSave={handleSaveEnhancedProject}
-          apiKey={effectiveApiKey} // Pass apiKey
-        />
+        <ProjectEnhancementModal project={projectToEnhance} onClose={closeEnhancementModal} onSave={handleSaveEnhancedProject} apiKey={effectiveApiKey} />
       )}
 
       {showResumeUploadModal && (
-        <ResumeUploadModal
-          onClose={handleCloseResumeUploadModal}
-          onSave={handleSaveExtractedResumeData}
-          apiKey={effectiveApiKey} // Pass apiKey
+        <ResumeUploadModal onClose={handleCloseResumeUploadModal} onSave={handleSaveExtractedResumeData} apiKey={effectiveApiKey} />
+      )}
+
+      {isLengthModalVisible && (
+        <ResumeLengthModal
+            onClose={() => setIsLengthModalVisible(false)}
+            onSelectLength={startResumeGeneration}
         />
       )}
     </Layout>
